@@ -294,6 +294,7 @@ const Dashboard = () => {
   // --- ESTADO DE IDENTIFICAÇÃO ---
   const [identification, setIdentification] = useState({
     professional: '',
+    professionalName: '', // <-- NOVO CAMPO ADICIONADO
     sector: '',
     bed: '',
     drugAllergy: '',
@@ -516,11 +517,36 @@ const Dashboard = () => {
     const generationDate = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR');
     addText(`Gerado em: ${generationDate}`, { x: pageWidth / 2, align: 'center' }, y + 20);
 
-    // --- SEÇÃO 1: DADOS DO PACIENTE ---
+    // --- SEÇÃO 1: DADOS DO ATENDIMENTO (ORDEM ALTERADA) ---
     y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    addText('1. Dados do Paciente', { x: margin }, y + 20);
+    addText('1. Identificação do Atendimento', { x: margin }, y + 20);
+    doc.setLineWidth(1.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+
+    autoTable(doc, {
+        startY: y,
+        body: [
+            ['Profissional:', identification.professional || 'Não informado'],
+            ['Nome do Profissional:', identification.professionalName || 'Não informado'], // <-- NOME ADICIONADO
+            ['Setor:', identification.sector || 'Não informado'],
+            ['Leito nº:', identification.bed || 'Não informado'],
+            ['Alergia Medicamentosa:', identification.drugAllergy || 'Nenhuma informada'],
+            ['Modificação no Exame Físico:', identification.examModification ? 'Sim' : 'Não'],
+        ],
+        theme: 'plain',
+        styles: { fontSize: 11 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 150 }, 1: {} }
+    });
+    y = doc.lastAutoTable.finalY + 15;
+
+    // --- SEÇÃO 2: DADOS DO PACIENTE (ORDEM ALTERADA) ---
+    y += 20;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    addText('2. Dados do Paciente', { x: margin }, y + 20);
     doc.setLineWidth(1.5);
     doc.line(margin, y, pageWidth - margin, y);
     y += 5;
@@ -540,40 +566,6 @@ const Dashboard = () => {
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 150 }, 1: {} }
     });
     y = doc.lastAutoTable.finalY + 10;
-      
-    // --- NOVA SEÇÃO: DADOS DO ATENDIMENTO ---
-    y += 20;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    addText('2. Identificação do Atendimento', { x: margin }, y + 20);
-    doc.setLineWidth(1.5);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 5;
-
-    autoTable(doc, {
-        startY: y,
-        body: [
-            ['Profissional:', identification.professional || 'Não informado'],
-            ['Setor:', identification.sector || 'Não informado'],
-            ['Leito nº:', identification.bed || 'Não informado'],
-            ['Alergia Medicamentosa:', identification.drugAllergy || 'Nenhuma informada'],
-            ['Modificação no Exame Físico:', identification.examModification ? 'Sim' : 'Não'],
-        ],
-        theme: 'plain',
-        styles: { fontSize: 11 },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 150 }, 1: {} }
-    });
-    y = doc.lastAutoTable.finalY + 15;
-
-    // --- Anotações do Médico (vindas do formulário) ---
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    addText('Anotações Iniciais Registradas:', { x: margin }, y + 15);
-    doc.setFont('helvetica', 'normal');
-    const notesText = identification.notes || 'Nenhuma anotação registrada.';
-    const splitNotes = doc.splitTextToSize(notesText, pageWidth - (margin * 2));
-    addText(splitNotes, { x: margin }, y + (splitNotes.length * 12) + 5);
-
 
     // --- SEÇÃO 3: AVALIAÇÃO CLÍNICA ---
     y += 20;
@@ -585,44 +577,29 @@ const Dashboard = () => {
     y += 5;
 
     const vitalsData = Object.entries({
-        "Pressão Sistólica": `${vitals.systolic} mmHg`,
-        "Pressão Diastólica": `${vitals.diastolic} mmHg`,
-        "Frequência Cardíaca": `${vitals.fc} bpm`,
-        "Frequência Respiratória": `${vitals.fr} irpm`,
-        "Temperatura": `${vitals.temperature} °C`,
-        "Saturação O₂": `${vitals.spo2} %`,
+        "Pressão Sistólica": `${vitals.systolic} mmHg`, "Pressão Diastólica": `${vitals.diastolic} mmHg`,
+        "Frequência Cardíaca": `${vitals.fc} bpm`, "Frequência Respiratória": `${vitals.fr} irpm`,
+        "Temperatura": `${vitals.temperature} °C`, "Saturação O₂": `${vitals.spo2} %`,
         "Lactato": `${vitals.lactate} mmol/L`,
     }).map(([key, value]) => [key, value]);
 
     const examData = Object.entries({
-        "Nível de Consciência": physicalExam.consciousness,
-        "Enchimento Capilar": physicalExam.capillaryRefill,
-        "Coloração da Pele": physicalExam.skinColor,
-        "Temperatura da Pele": physicalExam.skinTemperature,
-        "Sons Pulmonares": physicalExam.lungSounds,
-        "Sons Cardíacos": physicalExam.heartSounds,
-        "Expansão Torácica": physicalExam.chestExpansion,
-        "Turgência Jugular": physicalExam.jugularVeinDistension ? 'Sim' : 'Não',
-        "Urticária/Angioedema": physicalExam.urticaria ? 'Sim' : 'Não',
-        "Trauma Raquimedular": physicalExam.spinalInjury ? 'Sim' : 'Não',
+        "Nível de Consciência": physicalExam.consciousness, "Enchimento Capilar": physicalExam.capillaryRefill,
+        "Coloração da Pele": physicalExam.skinColor, "Temperatura da Pele": physicalExam.skinTemperature,
+        "Sons Pulmonares": physicalExam.lungSounds, "Sons Cardíacos": physicalExam.heartSounds,
+        "Expansão Torácica": physicalExam.chestExpansion, "Turgência Jugular": physicalExam.jugularVeinDistension ? 'Sim' : 'Não',
+        "Urticária/Angioedema": physicalExam.urticaria ? 'Sim' : 'Não', "Trauma Raquimedular": physicalExam.spinalInjury ? 'Sim' : 'Não',
     }).map(([key, value]) => [key, value]);
     
     const combinedData = [];
     const maxLength = Math.max(vitalsData.length, examData.length);
     for (let i = 0; i < maxLength; i++) {
-        combinedData.push([
-            ...(vitalsData[i] || ['', '']),
-            ...(examData[i] || ['', ''])
-        ]);
+        combinedData.push([...(vitalsData[i] || ['', '']), ...(examData[i] || ['', ''])]);
     }
     
     autoTable(doc, {
-        startY: y,
-        head: [['Parâmetros Vitais', 'Valor', 'Exame Físico', 'Achado']],
-        body: combinedData,
-        theme: 'grid',
-        headStyles: { fillColor: [22, 160, 133], textColor: 255 },
-        styles: { fontSize: 10 }
+        startY: y, head: [['Parâmetros Vitais', 'Valor', 'Exame Físico', 'Achado']], body: combinedData,
+        theme: 'grid', headStyles: { fillColor: [22, 160, 133], textColor: 255 }, styles: { fontSize: 10 }
     });
     y = doc.lastAutoTable.finalY + 30;
 
@@ -639,16 +616,12 @@ const Dashboard = () => {
         addText(`Nível de Risco: ${result.level}`, { x: margin, fontStyle: 'bold' }, y + 20);
         
         autoTable(doc, {
-            startY: y,
-            head: [['Tipo de Choque', 'Probabilidade (%)']],
+            startY: y, head: [['Tipo de Choque', 'Probabilidade (%)']],
             body: result.probabilities.map(p => [p.type, p.percentage.toFixed(1)]),
-            theme: 'striped',
-            headStyles: { fillColor: [44, 62, 80], textColor: 255 },
-            styles: { fontSize: 11 },
+            theme: 'striped', headStyles: { fillColor: [44, 62, 80], textColor: 255 }, styles: { fontSize: 11 },
             didParseCell: function (data) {
                 if (data.column.index === 1 && data.row.index === 0) {
-                    data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.textColor = [44, 62, 80];
+                    data.cell.styles.fontStyle = 'bold'; data.cell.styles.textColor = [44, 62, 80];
                 }
             }
         });
@@ -663,24 +636,30 @@ const Dashboard = () => {
     }
     y = doc.lastAutoTable.finalY > y ? doc.lastAutoTable.finalY : y;
 
-
-    // --- NOVA SEÇÃO: ESPAÇO PARA ANOTAÇÕES MANUSCRITAS ---
-    y += 30;
-    
-    // Verifica se precisa de uma nova página
-    if (y > doc.internal.pageSize.getHeight() - 200) { // 200 é uma margem para as 15 linhas
-        doc.addPage();
-        y = margin;
-    }
-
+    // --- SEÇÃO 5: ANOTAÇÕES DO FORMULÁRIO ---
+    y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    addText('5. Observações e Conduta Médica', { x: margin }, y + 20);
+    addText('5. Anotações Iniciais Registradas', { x: margin }, y + 20);
     doc.setLineWidth(1.5);
     doc.line(margin, y, pageWidth - margin, y);
     y += 15;
+    doc.setFont('helvetica', 'normal');
+    const notesText = identification.notes || 'Nenhuma anotação registrada.';
+    const splitNotes = doc.splitTextToSize(notesText, pageWidth - (margin * 2));
+    addText(splitNotes, { x: margin }, y + (splitNotes.length * 12) + 5);
 
-    // Desenha 15 linhas para anotações
+    // --- SEÇÃO 6: OBSERVAÇÕES MANUSCRITAS (TÍTULO ALTERADO) ---
+    y += 30;
+    if (y > doc.internal.pageSize.getHeight() - 200) { doc.addPage(); y = margin; }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    addText('6. Observações', { x: margin }, y + 20); // <-- TÍTULO ALTERADO
+    doc.setLineWidth(1.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 15;
+    
     const lineHeight = 20;
     for (let i = 0; i < 15; i++) {
         y += lineHeight;
@@ -696,14 +675,11 @@ const Dashboard = () => {
         doc.setFontSize(8);
         doc.text(
             'Este é um relatório gerado por sistema de apoio à decisão. A interpretação final é de responsabilidade do profissional de saúde.',
-            margin,
-            doc.internal.pageSize.getHeight() - 20
+            margin, doc.internal.pageSize.getHeight() - 20
         );
         doc.text(
             `Página ${i} de ${pageCount}`,
-            pageWidth - margin,
-            doc.internal.pageSize.getHeight() - 20,
-            { align: 'right' }
+            pageWidth - margin, doc.internal.pageSize.getHeight() - 20, { align: 'right' }
         );
     }
     
@@ -726,14 +702,14 @@ const Dashboard = () => {
         {/* Card de Identificação Profissional */}
         <Card elevation={2} sx={{ p: 4, mb: 4, borderRadius: 4, background: alpha(theme.palette.background.paper, 0.95), boxShadow: `0 4px 24px ${alpha(theme.palette.primary.main, 0.08)}` }}>
           <Typography variant="h5" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <PersonIcon color="primary" /> Identificação do Profissional
+            <PersonIcon color="primary" /> Identificação do Atendimento
           </Typography>
           <Grid container spacing={3} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6} md={3}>
               <TextField
                 select
                 fullWidth
-                label="Profissional"
+                label="Profissional (Cargo)"
                 value={identification.professional}
                 onChange={e => setIdentification({ ...identification, professional: e.target.value })}
                 SelectProps={{ native: true }}
@@ -745,17 +721,21 @@ const Dashboard = () => {
                 ))}
               </TextField>
             </Grid>
+            {/* NOVO CAMPO DE NOME */}
+            <Grid item xs={12} sm={6} md={3}>
+                <TextField fullWidth label="Nome do Profissional" value={identification.professionalName} onChange={e => setIdentification({ ...identification, professionalName: e.target.value })} variant="outlined" />
+            </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField fullWidth label="Setor" value={identification.sector} onChange={e => setIdentification({ ...identification, sector: e.target.value })} variant="outlined" />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField fullWidth label="Leito nº" value={identification.bed} onChange={e => setIdentification({ ...identification, bed: e.target.value })} variant="outlined" />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={6}>
               <TextField fullWidth label="Alergia Medicamentosa" value={identification.drugAllergy} onChange={e => setIdentification({ ...identification, drugAllergy: e.target.value })} variant="outlined" />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Stack direction="row" alignItems="center" spacing={2} sx={{ mt: 2 }}>
+            <Grid item xs={12} sm={6} md={6}>
+              <Stack direction="row" alignItems="center" spacing={2} sx={{ height: '100%' }}>
                 <Typography>Modificação no Exame Físico:</Typography>
                 <Button
                   variant={identification.examModification ? 'contained' : 'outlined'}
@@ -767,17 +747,17 @@ const Dashboard = () => {
                 </Button>
               </Stack>
             </Grid>
-            <Grid item xs={12} md={9}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Anotações do Médico"
+                label="Anotações"
                 value={identification.notes}
                 onChange={e => setIdentification({ ...identification, notes: e.target.value })}
                 multiline
                 rows={4}
                 variant="outlined"
-                sx={{ mt: 2, background: alpha(theme.palette.primary.light, 0.04), borderRadius: 2 }}
-                placeholder="Observações, condutas, evolução clínica, etc."
+                sx={{ background: alpha(theme.palette.primary.light, 0.04), borderRadius: 2 }}
+                placeholder="Observações, condutas iniciais, evolução clínica, etc."
               />
             </Grid>
           </Grid>
