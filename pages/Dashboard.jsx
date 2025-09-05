@@ -757,7 +757,7 @@ const Dashboard = () => {
                 rows={4}
                 variant="outlined"
                 sx={{ background: alpha(theme.palette.primary.light, 0.04), borderRadius: 2 }}
-                placeholder="Observações, condutas iniciais, evolução clínica, etc."
+                placeholder="Observações, condutas iniciais, evolução clínica."
               />
             </Grid>
           </Grid>
