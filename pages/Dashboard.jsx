@@ -19,8 +19,6 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// --- (O restante dos componentes auxiliares permanece o mesmo) ---
-
 // --- COMPONENTES AUXILIARES ---
 
 const IconSlider = styled(Box)(({ theme }) => ({
@@ -289,6 +287,7 @@ const ShockTypeResult = ({ result, isLoading }) => {
   );
 };
 
+
 // --- COMPONENTE PRINCIPAL DO DASHBOARD ---
 const Dashboard = () => {
   const theme = useTheme();
@@ -318,12 +317,12 @@ const Dashboard = () => {
     capillaryRefill: 'normal', skinColor: 'normal', consciousness: 'alerta',
     jugularVeinDistension: false, lungSounds: 'normal', chestExpansion: 'symmetric',
     heartSounds: 'normal', skinTemperature: 'normal', urticaria: false, spinalInjury: false,
-    beckTriad: false, trachealDeviation: false,
+    beckTriad: false,
+    // trachealDeviation foi REMOVIDO
   });
 
   const [result, setResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  // ✅ **PASSO 1: AJUSTE O ESTADO** - Remova a cor daqui
   const [urinaryDebit, setUrinaryDebit] = useState({ value: 0, status: 'Normal' });
 
   // Efeito para calcular a idade
@@ -345,7 +344,7 @@ const Dashboard = () => {
     }
   }, [patientData.birthDate]);
 
-  // ✅ **PASSO 2: AJUSTE O USEEFFECT** - Calcule apenas o valor e o status
+  // Efeito para calcular o DÉBITO URINÁRIO
   useEffect(() => {
     const { weight } = patientData;
     const { urineVolume, collectionHours } = vitals;
@@ -368,7 +367,8 @@ const Dashboard = () => {
 
   // --- OPÇÕES PARA SELETORES ---
   const genderOptions = [{ value: 'masculino', label: 'Masculino', icon: <MaleIcon /> }, { value: 'feminino', label: 'Feminino', icon: <FemaleIcon /> }];
-  const capillaryRefillOptions = [{ value: 'normal', label: 'Normal < 2s' }, { value: 'lento', label: 'Lento > 2s' }];
+  // ✅ ALTERADO AQUI
+  const capillaryRefillOptions = [{ value: 'normal', label: 'Normal < 3s' }, { value: 'lento', label: 'Lento > 7s' }];
   const skinColorOptions = [{ value: 'normal', label: 'Normal' }, { value: 'palidez', label: 'Palidez' }, { value: 'cianose', label: 'Cianose' }, { value: 'moteado', label: 'Moteado' }];
   const consciousnessOptions = [{ value: 'alerta', label: 'Alerta' }, { value: 'sonolento', label: 'Sonolento' }, { value: 'confuso', label: 'Confuso' }, { value: 'comatoso', label: 'Comatoso' }];
   const yesNoOptions = [{ value: true, label: 'Sim' }, { value: false, label: 'Não' }];
@@ -388,28 +388,53 @@ const Dashboard = () => {
       hypovolemic: 0, septic: 0, cardiogenic: 0,
       anaphylactic: 0, neurogenic: 0, obstructive: 0,
     };
-
+    
+    // Variáveis de estado
     const isHypotensive = vitals.systolic < 90;
     const isTachycardic = vitals.fc > 100;
     const isTachypneic = vitals.fr > 20;
+    // ✅ ALTERADO AQUI - Adicionado cálculo da PAM
+    const pam = vitals.diastolic + (vitals.systolic - vitals.diastolic) / 3;
 
+    // Lógica de Hipotensão
     if (isHypotensive) {
       alerts.push('Hipotensão Arterial');
+      // Pontuação base para todos os choques em caso de hipotensão
       Object.keys(scores).forEach(k => scores[k] += 20);
+      
+      // ✅ ALTERADO AQUI - Lógica específica da PAS para Obstrutivo
+      if (pam < 65) {
+          alerts.push(`PAM Baixa (${pam.toFixed(0)} mmHg)`);
+          scores.obstructive += 15; // Pontos extras se PAM < 65
+      }
     } else {
       alerts.push('Paciente Normotenso');
       Object.keys(scores).forEach(k => scores[k] += 1);
     }
-
+    
+    // Lógica de Frequência Cardíaca
     if (isTachycardic) {
       alerts.push('Taquicardia');
-      scores.hypovolemic += 15; scores.septic += 10; scores.cardiogenic += 5;
-      scores.anaphylactic += 10; scores.neurogenic -= 10; scores.obstructive += 15;
+      scores.hypovolemic += 15;
+      scores.septic += 10;
+      scores.anaphylactic += 10;
+      scores.obstructive += 15;
     }
+    // ✅ ALTERADO AQUI - Lógica específica da FC para Cardiogênico
+    if (vitals.fc >= 90 && vitals.fc <= 130) {
+        scores.cardiogenic += 10;
+    }
+    
+    // Lógica de Frequência Respiratória
     if (isTachypneic) {
       alerts.push('Taquipneia');
-      scores.septic += 10; scores.cardiogenic += 10; scores.obstructive += 15;
+      scores.septic += 10;
+      scores.cardiogenic += 10;
+      scores.obstructive += 15;
+      // ✅ ALTERADO AQUI - Adicionada pontuação para Hipovolêmico
+      scores.hypovolemic += 10;
     }
+
     // Lógica de Débito Urinário
     if (urinaryDebit.status === 'Grave') {
       alerts.push('Débito Urinário Grave (< 0,3 mL/kg/h)');
@@ -425,7 +450,8 @@ const Dashboard = () => {
       alerts.push('Má Perfusão Periférica');
       scores.hypovolemic += 20; scores.cardiogenic += 15; scores.septic += 10; scores.obstructive += 10;
     }
-
+    
+    // Lógica de Lactato
     if (vitals.lactate > 2) {
       alerts.push(`Lactato Elevado (${vitals.lactate} mmol/L)`);
       const lactatePoints = vitals.lactate >= 4 ? 25 : 15;
@@ -433,6 +459,19 @@ const Dashboard = () => {
       scores.cardiogenic += lactatePoints - 10; scores.obstructive += lactatePoints - 5;
     }
 
+    // Lógica de PVC
+    if (vitals.pvc > 12) {
+      alerts.push(`PVC Elevada (> 12 mmHg)`);
+      scores.cardiogenic += 15;
+      scores.obstructive += 25;
+    }
+    // ✅ ALTERADO AQUI - Adicionada lógica de PVC baixa para Hipovolêmico
+    if (vitals.pvc < 8) {
+      alerts.push('PVC Baixa (< 8 mmHg)');
+      scores.hypovolemic += 15;
+    }
+
+    // Achados específicos (Cardiogênico)
     if (physicalExam.jugularVeinDistension) {
       alerts.push('Turgência Jugular');
       scores.cardiogenic += 30; scores.obstructive += 25;
@@ -441,7 +480,8 @@ const Dashboard = () => {
       alerts.push('Estertores Pulmonares (Edema)');
       scores.cardiogenic += 30;
     }
-
+    
+    // Achados específicos (Séptico)
     const hasFeverOrHypothermia = vitals.temperature > 38 || vitals.temperature < 36;
     if (hasFeverOrHypothermia) {
       alerts.push(vitals.temperature > 38 ? 'Febre' : 'Hipotermia');
@@ -451,7 +491,8 @@ const Dashboard = () => {
       alerts.push('Pele Quente (Vasodilatação)');
       scores.septic += 20;
     }
-
+    
+    // Achados específicos (Anafilático)
     if (physicalExam.urticaria) {
       alerts.push('Urticária / Angioedema');
       scores.anaphylactic += 50;
@@ -460,7 +501,8 @@ const Dashboard = () => {
       alerts.push('Sibilância (Broncoespasmo)');
       scores.anaphylactic += 40;
     }
-
+    
+    // Achados específicos (Neurogênico)
     const isBradycardic = vitals.fc < 60;
     if (isHypotensive && isBradycardic) {
       alerts.push('Hipotensão com Bradicardia');
@@ -473,11 +515,8 @@ const Dashboard = () => {
     if (physicalExam.skinTemperature === 'quente' && isBradycardic) {
       scores.neurogenic += 20;
     }
-
-    if (vitals.pvc > 12) {
-      alerts.push(`PVC Elevada (${vitals.pvc} mmHg)`);
-      scores.obstructive += 30; scores.cardiogenic += 15;
-    }
+    
+    // Achados específicos (Obstrutivo)
     if (vitals.spo2 < 90) {
       alerts.push(`Hipoxemia (SatO₂ ${vitals.spo2}%)`);
       scores.obstructive += 20;
@@ -486,12 +525,14 @@ const Dashboard = () => {
       alerts.push('Tríade de Beck (Sugestivo de Tamponamento)');
       scores.obstructive += 50;
     }
-    if (physicalExam.trachealDeviation || physicalExam.lungSounds === 'ausente') {
-      alerts.push('Sugestivo de Pneumotórax Hipertensivo');
-      scores.obstructive += 45;
+    // ✅ ALTERADO AQUI - Removido `trachealDeviation`
+    if (physicalExam.lungSounds === 'ausente') {
+        alerts.push('Sugestivo de Pneumotórax Hipertensivo');
+        scores.obstructive += 45;
     }
     if (physicalExam.heartSounds === 'abafadas') {
-      scores.obstructive += 15; scores.cardiogenic += 5;
+        scores.obstructive += 15;
+        scores.cardiogenic += 5;
     }
 
     Object.keys(scores).forEach(k => { scores[k] = Math.max(0, scores[k]) });
@@ -532,7 +573,6 @@ const Dashboard = () => {
     setIsLoading(false);
   };
 
-  // --- FUNÇÃO PARA GERAR PDF PROFISSIONAL (sem alterações, omitido para brevidade) ---
   const handleDownloadPdf = () => {
     const doc = new jsPDF('portrait', 'pt', 'a4');
     const margin = 40;
@@ -544,7 +584,6 @@ const Dashboard = () => {
       y = newY !== undefined ? newY : y + (options.lineHeight || 12);
     };
 
-    // --- CABEÇALHO ---
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     addText('Relatório de Análise de Risco de Choque', { x: pageWidth / 2, align: 'center' }, y + 30);
@@ -554,7 +593,6 @@ const Dashboard = () => {
     const generationDate = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR');
     addText(`Gerado em: ${generationDate}`, { x: pageWidth / 2, align: 'center' }, y + 20);
 
-    // --- SEÇÃO 1: DADOS DO ATENDIMENTO (ORDEM ALTERADA) ---
     y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -579,7 +617,6 @@ const Dashboard = () => {
     });
     y = doc.lastAutoTable.finalY + 15;
 
-    // --- SEÇÃO 2: DADOS DO PACIENTE (ORDEM ALTERADA) ---
     y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -604,7 +641,6 @@ const Dashboard = () => {
     });
     y = doc.lastAutoTable.finalY + 10;
 
-    // --- SEÇÃO 3: AVALIAÇÃO CLÍNICA ---
     y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -620,14 +656,15 @@ const Dashboard = () => {
       "Lactato": `${vitals.lactate} mmol/L`, "PVC": `${vitals.pvc} mmHg`,
       "Débito Urinário": `${urinaryDebit.value.toFixed(2)} mL/kg/h (${urinaryDebit.status})`,
     }).map(([key, value]) => [key, value]);
-
+    
+    // ✅ ALTERADO AQUI - Removido Desvio de Traqueia
     const examData = Object.entries({
       "Nível de Consciência": physicalExam.consciousness, "Enchimento Capilar": physicalExam.capillaryRefill,
       "Coloração da Pele": physicalExam.skinColor, "Temperatura da Pele": physicalExam.skinTemperature,
       "Sons Pulmonares": physicalExam.lungSounds, "Sons Cardíacos": physicalExam.heartSounds,
       "Expansão Torácica": physicalExam.chestExpansion, "Turgência Jugular": physicalExam.jugularVeinDistension ? 'Sim' : 'Não',
       "Urticária/Angioedema": physicalExam.urticaria ? 'Sim' : 'Não', "Trauma Raquimedular": physicalExam.spinalInjury ? 'Sim' : 'Não',
-      "Tríade de Beck": physicalExam.beckTriad ? 'Sim' : 'Não', "Desvio de Traqueia": physicalExam.trachealDeviation ? 'Sim' : 'Não'
+      "Tríade de Beck": physicalExam.beckTriad ? 'Sim' : 'Não',
     }).map(([key, value]) => [key, value]);
 
     const combinedData = [];
@@ -642,7 +679,6 @@ const Dashboard = () => {
     });
     y = doc.lastAutoTable.finalY + 30;
 
-    // --- SEÇÃO 4: ANÁLISE DE RISCO ---
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     addText('4. Análise de Risco de Choque', { x: margin }, y + 20);
@@ -675,7 +711,6 @@ const Dashboard = () => {
     }
     y = doc.lastAutoTable.finalY > y ? doc.lastAutoTable.finalY : y;
 
-    // --- SEÇÃO 5: ANOTAÇÕES DO FORMULÁRIO ---
     y += 20;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -688,7 +723,6 @@ const Dashboard = () => {
     const splitNotes = doc.splitTextToSize(notesText, pageWidth - (margin * 2));
     addText(splitNotes, { x: margin }, y + (splitNotes.length * 12) + 5);
 
-    // --- SEÇÃO 6: OBSERVAÇÕES MANUSCRITAS (TÍTULO ALTERADO) ---
     y += 30;
     if (y > doc.internal.pageSize.getHeight() - 200) { doc.addPage(); y = margin; }
 
@@ -706,7 +740,6 @@ const Dashboard = () => {
       doc.line(margin, y, pageWidth - margin, y);
     }
 
-    // --- RODAPÉ ---
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -725,7 +758,6 @@ const Dashboard = () => {
     doc.save(`relatorio_${patientData.name.replace(/ /g, '_') || 'paciente'}.pdf`);
   };
 
-  // ✅ **PASSO 3: DEFINA A COR NA RENDERIZAÇÃO**
   let debitStatusColor = theme.palette.text.secondary;
   if (urinaryDebit.status === 'Normal') {
     debitStatusColor = theme.palette.success.main;
@@ -876,7 +908,6 @@ const Dashboard = () => {
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
-                  {/* ✅ **PASSO 4: USE A VARIÁVEL DE COR CORRIGIDA** */}
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, background: alpha(debitStatusColor, 0.1), textAlign: 'center', border: `2px solid ${debitStatusColor}` }}>
                       <Typography variant="subtitle1" fontWeight={600}>Resultado</Typography>
                       <Typography variant="h5" fontWeight={700} color={debitStatusColor}>
@@ -907,7 +938,7 @@ const Dashboard = () => {
                   <Grid item xs={12} sm={6}><VitalCard icon={<TempIcon />} title="Temperatura" value={vitals.temperature} unit="°C" slider onChange={(v) => setVitals({ ...vitals, temperature: v })} min={32} max={42} step={0.1} marks={[{ value: 36, label: '36' }, { value: 38, label: '38' }]} /></Grid>
                   <Grid item xs={12} sm={6}><VitalCard icon={<OpacityIcon />} title="Saturação O2" value={vitals.spo2} unit="%" slider onChange={(v) => setVitals({ ...vitals, spo2: v })} min={70} max={100} marks={[{ value: 94, label: '94' }]} /></Grid>
                   <Grid item xs={12} sm={6}><VitalCard icon={<BloodTypeIcon />} title="Lactato" value={vitals.lactate} unit="mmol/L" slider onChange={(v) => setVitals({ ...vitals, lactate: v })} min={0.5} max={15} step={0.1} marks={[{ value: 2, label: '2' }, { value: 4, label: '4' }]} /></Grid>
-                  <Grid item xs={12} sm={6}><VitalCard icon={<ArrowUpwardIcon />} title="Pressão Venosa Central" value={vitals.pvc} unit="mmHg" slider onChange={(v) => setVitals({ ...vitals, pvc: v })} min={0} max={30} marks={[{ value: 12, label: '12' }]} /></Grid>
+                  <Grid item xs={12} sm={6}><VitalCard icon={<ArrowUpwardIcon />} title="Pressão Venosa Central" value={vitals.pvc} unit="mmHg" slider onChange={(v) => setVitals({ ...vitals, pvc: v })} min={0} max={30} marks={[{ value: 8, label: '8' }, { value: 12, label: '12' }]} /></Grid>
                 </Grid>
               </Card>
 
@@ -924,8 +955,8 @@ const Dashboard = () => {
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Turgência Jugular" icon={<PersonSearchIcon />} options={yesNoOptions} value={physicalExam.jugularVeinDistension} onChange={(v) => setPhysicalExam({ ...physicalExam, jugularVeinDistension: v })} /></Grid>
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Urticária / Angioedema" icon={<AllergenIcon />} options={yesNoOptions} value={physicalExam.urticaria} onChange={(v) => setPhysicalExam({ ...physicalExam, urticaria: v })} /></Grid>
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Suspeita de Trauma Raquimedular" icon={<SpinalInjuryIcon />} options={yesNoOptions} value={physicalExam.spinalInjury} onChange={(v) => setPhysicalExam({ ...physicalExam, spinalInjury: v })} /></Grid>
-                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Beck" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.beckTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, beckTriad: v })} /></Grid>
-                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Desvio de Traqueia" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.trachealDeviation} onChange={(v) => setPhysicalExam({ ...physicalExam, trachealDeviation: v })} /></Grid>
+                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Beck: (Hipotensão, bulhas abafadas e turgência jugular)" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.beckTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, beckTriad: v })} /></Grid>
+                  {/* Desvio de Traqueia foi REMOVIDO daqui */}
                 </Grid>
               </Card>
             </Stack>
