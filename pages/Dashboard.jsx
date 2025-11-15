@@ -573,11 +573,55 @@ const Dashboard = () => {
     setIsLoading(false);
   };
 
-  const handleDownloadPdf = () => {
+  // --- ATUALIZADO: Função de PDF agora é 'async' ---
+  const handleDownloadPdf = async () => {
     const doc = new jsPDF('portrait', 'pt', 'a4');
     const margin = 40;
     const pageWidth = doc.internal.pageSize.getWidth();
     let y = margin;
+
+    // --- NOVO: Função helper para carregar imagens como Base64 ---
+    const fetchImageAsBase64 = async (url) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Imagem não encontrada');
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.error("Erro ao carregar imagem para PDF:", error);
+        return null;
+      }
+    };
+
+    // --- NOVO: Carrega as duas imagens ---
+    const iconBase64 = await fetchImageAsBase64('/imagens/Icone.png');
+    const logoBase64 = await fetchImageAsBase64('/imagens/Logo.png');
+
+    const imageHeaderHeight = 50; // Altura máxima para as imagens do cabeçalho
+
+    if (iconBase64) {
+      const imgProps = doc.getImageProperties(iconBase64);
+      const imgWidth = (imgProps.width * imageHeaderHeight) / imgProps.height;
+      doc.addImage(iconBase64, 'png', margin, y, imgWidth, imageHeaderHeight);
+    }
+    
+    if (logoBase64) {
+      const imgProps = doc.getImageProperties(logoBase64);
+      const imgWidth = (imgProps.width * imageHeaderHeight) / imgProps.height;
+      // Alinha à direita
+      doc.addImage(logoBase64, 'png', pageWidth - margin - imgWidth, y, imgWidth, imageHeaderHeight);
+    }
+
+    // Adiciona espaço depois das imagens
+    if (iconBase64 || logoBase64) {
+      y += imageHeaderHeight + 20;
+    }
+    // --- FIM DA ADIÇÃO DE IMAGENS ---
 
     const addText = (text, options, newY) => {
       doc.text(text, options.x, y, options);
@@ -586,6 +630,7 @@ const Dashboard = () => {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
+    // Y ajustado para depois das imagens
     addText('Relatório de Análise de Risco de Choque', { x: pageWidth / 2, align: 'center' }, y + 30);
 
     doc.setFont('helvetica', 'normal');
@@ -955,6 +1000,7 @@ const Dashboard = () => {
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Turgência Jugular" icon={<PersonSearchIcon />} options={yesNoOptions} value={physicalExam.jugularVeinDistension} onChange={(v) => setPhysicalExam({ ...physicalExam, jugularVeinDistension: v })} /></Grid>
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Urticária / Angioedema" icon={<AllergenIcon />} options={yesNoOptions} value={physicalExam.urticaria} onChange={(v) => setPhysicalExam({ ...physicalExam, urticaria: v })} /></Grid>
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Suspeita de Trauma Raquimedular" icon={<SpinalInjuryIcon />} options={yesNoOptions} value={physicalExam.spinalInjury} onChange={(v) => setPhysicalExam({ ...physicalExam, spinalInjury: v })} /></Grid>
+
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Beck: (Hipotensão, bulhas abafadas e turgência jugular)" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.beckTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, beckTriad: v })} /></Grid>
                   {/* Desvio de Traqueia foi REMOVIDO daqui */}
                 </Grid>
