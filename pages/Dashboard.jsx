@@ -15,7 +15,8 @@ import {
   RecordVoiceOver as HeartSoundIcon, PersonSearch as PersonSearchIcon, Healing as SpinalInjuryIcon,
   Grain as AllergenIcon, Cake as BirthdayIcon, Download as DownloadIcon, ArrowUpward as ArrowUpwardIcon,
   CheckCircle as CheckCircleIcon, Error as ErrorIcon, ReportProblem as ReportProblemIcon, Functions as FunctionsIcon,
-  SurroundSound as SoundIcon
+  SurroundSound as SoundIcon,
+  PsychologyAlt as NeuroIcon // Novo ícone para Cushing
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -308,7 +309,7 @@ const Dashboard = () => {
   const [patientData, setPatientData] = useState({
     name: '', birthDate: '', age: '', ageInDays: 0,
     gender: 'masculino', weight: 70, category: 'Adulto', pathology: '',
-    drugAllergy: '', // MOVIDO PARA CÁ
+    drugAllergy: '', 
   });
 
   const [vitals, setVitals] = useState({
@@ -321,14 +322,15 @@ const Dashboard = () => {
     skinColor: 'normal', 
     consciousness: 'alerta',
     jugularVeinDistension: false, 
-    lungAirEntry: 'bilateral', // Novo: Murmúrios
-    lungAdventitious: 'ausente', // Novo: Ruídos/Estertores
+    lungAirEntry: 'bilateral',
+    lungAdventitious: 'ausente',
     chestExpansion: 'symmetric',
-    heartSounds: 'ritmicas_2t', // Novo valor padrão
+    heartSounds: 'ritmicas_2t',
     skinTemperature: 'normal', 
     urticaria: false, 
     spinalInjury: false,
     beckTriad: false,
+    cushingTriad: false, // NOVO ESTADO: Tríade de Cushing
   });
 
   const [result, setResult] = useState(null);
@@ -375,39 +377,36 @@ const Dashboard = () => {
   }, [patientData.weight, vitals.urineVolume, vitals.collectionHours]);
 
 
-  // --- OPÇÕES PARA SELETORES ATUALIZADAS ---
+  // --- OPÇÕES PARA SELETORES ---
   const genderOptions = [{ value: 'masculino', label: 'Masculino', icon: <MaleIcon /> }, { value: 'feminino', label: 'Feminino', icon: <FemaleIcon /> }];
   const capillaryRefillOptions = [{ value: 'normal', label: 'Normal < 3s' }, { value: 'lento', label: 'Lento > 7s' }];
   const skinColorOptions = [{ value: 'normal', label: 'Normal' }, { value: 'palidez', label: 'Palidez' }, { value: 'cianose', label: 'Cianose' }, { value: 'moteado', label: 'Moteado' }];
   const consciousnessOptions = [{ value: 'alerta', label: 'Alerta' }, { value: 'sonolento', label: 'Sonolento' }, { value: 'confuso', label: 'Confuso' }, { value: 'comatoso', label: 'Comatoso' }];
   const yesNoOptions = [{ value: true, label: 'Sim' }, { value: false, label: 'Não' }];
   
-  // AUSCULTA PULMONAR (MURMÚRIOS)
   const lungAirEntryOptions = [
     { value: 'bilateral', label: 'Murmúrios presentes bilateralmente' },
     { value: 'unilateral', label: 'Murmúrios presentes unilateralmente (D ou E)' },
     { value: 'ausente', label: 'Murmúrios vesiculares ausentes' }
   ];
 
-  // RUÍDOS ADVENTÍCIOS (SONS)
   const lungAdventitiousOptions = [
     { value: 'ausente', label: 'Sem ruídos adventícios' },
-    { value: 'crepitantes', label: 'Estertores / Crepitantes' }, // Importante para o algoritmo
+    { value: 'crepitantes', label: 'Estertores / Crepitantes' },
     { value: 'roncos_sibilos', label: 'Roncos / Sibilos' }
   ];
 
-  // AUSCULTA CARDÍACA
   const heartSoundOptions = [
     { value: 'ritmicas_2t', label: 'Bulhas rítmicas em 2T' },
     { value: 'arritmicas', label: 'Bulhas arrítmicas' },
     { value: 'hipofoneticas', label: 'Bulhas hipofonéticas (abafadas)' }
   ];
 
-  const skinTempOptions = [{ value: 'normal', label: 'Normal' }, { value: 'quente', label: 'Quente' }, { value: 'fria', label: 'Fria/úmida' }]; // Label alterado
+  const skinTempOptions = [{ value: 'normal', label: 'Normal' }, { value: 'quente', label: 'Quente' }, { value: 'fria', label: 'Fria/úmida' }];
   const chestExpansionOptions = [{ value: 'symmetric', label: 'Simétrica' }, { value: 'asymmetric', label: 'Assimétrica' }];
 
 
-  // --- LÓGICA DE ANÁLISE DE CHOQUE REVISADA ---
+  // --- LÓGICA DE ANÁLISE DE CHOQUE ---
   const handleAnalyze = useCallback(async () => {
     setIsLoading(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -426,14 +425,11 @@ const Dashboard = () => {
     const isBradycardic = vitals.fc < 60;
     const isTachypneic = vitals.fr > 20;
     
-    // Critérios de Perfusão / Pele (Fria/Pálida/Cianótica/Úmida)
     const poorPerfusion = physicalExam.capillaryRefill === 'lento' || ['palidez', 'cianose', 'moteado'].includes(physicalExam.skinColor) || physicalExam.skinTemperature === 'fria';
     
-    // Critérios de Lactato
     const lactateHigh = vitals.lactate >= 4;
     const lactateElevated = vitals.lactate > 2 && vitals.lactate < 4;
 
-    // Critérios Urinários
     const urineSevere = urinaryDebit.value > 0 && urinaryDebit.value < 0.3;
     const urineAlert = urinaryDebit.value >= 0.3 && urinaryDebit.value < 0.5;
 
@@ -445,43 +441,32 @@ const Dashboard = () => {
     const historyNeuro = ['tce', 'traumatismo cranio', 'traumatismo crânio', 'cranioencefalico', 'dve', 'ave', 'acidente vascular', 'raquimedular', 'trm'].some(w => pathologyText.includes(w));
 
     // =====================================================================
-    // 1. CHOQUE CARDIOGÊNICO (Foco em Falência de Bomba) - LÓGICA NOVA
+    // 1. CHOQUE CARDIOGÊNICO
     // =====================================================================
-    // Diferenciadores Primários e Penalidades
     if (physicalExam.lungAdventitious === 'crepitantes') { 
         scores.cardiogenic += 60; 
         alerts.push('Sons Pulmonares Crepitantes (Estertores)'); 
     }
-    if (physicalExam.beckTriad) { 
-        scores.cardiogenic -= 60; // Penalidade
-    }
-    if (physicalExam.lungAirEntry === 'ausente') {
-        scores.cardiogenic -= 60; // Penalidade
-    }
+    if (physicalExam.beckTriad) { scores.cardiogenic -= 60; }
+    if (physicalExam.lungAirEntry === 'ausente') { scores.cardiogenic -= 60; }
     
-    // Sinais de Congestão e Falência
     if (physicalExam.jugularVeinDistension) { scores.cardiogenic += 20; alerts.push('Turgência Jugular'); }
     if (physicalExam.heartSounds === 'arritmicas') { scores.cardiogenic += 15; alerts.push('Bulhas Cardíacas Arrítmicas'); }
     if (physicalExam.heartSounds === 'hipofoneticas') { scores.cardiogenic += 10; alerts.push('Bulhas Hipofonéticas'); }
     if (vitals.pvc > 12) { scores.cardiogenic += 10; alerts.push('PVC Elevada (>12)'); }
     
-    // Sinais de Baixo Débito
     if (physicalExam.skinColor === 'cianose' || physicalExam.skinTemperature === 'fria') { scores.cardiogenic += 8; }
     if (physicalExam.capillaryRefill === 'lento') { scores.cardiogenic += 7; }
     if (physicalExam.consciousness === 'sonolento') { scores.cardiogenic += 5; }
     if (isHypotensive) { scores.cardiogenic += 5; }
     if (lactateHigh) { scores.cardiogenic += 5; }
     
-    // Penalidade por PVC Baixa
-    if (vitals.pvc < 8) { 
-        scores.cardiogenic -= 20; // Penalidade
-    }
+    if (vitals.pvc < 8) { scores.cardiogenic -= 20; }
 
 
     // =====================================================================
-    // 2. CHOQUE OBSTRUTIVO (Foco em Impedimento Mecânico) - LÓGICA NOVA
+    // 2. CHOQUE OBSTRUTIVO
     // =====================================================================
-    // Diferenciadores Primários
     if (physicalExam.beckTriad) { 
         scores.obstructive += 60; 
         alerts.push('Tríade de Beck (Tamponamento)'); 
@@ -491,32 +476,24 @@ const Dashboard = () => {
         alerts.push('Murmúrio Pulmonar Ausente (Pneumotórax)'); 
     }
     
-    // Penalidade Contra Cardiogênico
-    if (physicalExam.lungAdventitious === 'crepitantes') { 
-        scores.obstructive -= 60; // Penalidade
-    }
+    if (physicalExam.lungAdventitious === 'crepitantes') { scores.obstructive -= 60; }
     
-    // Histórico e Sinais Clínicos
     if (historyObstructive) { scores.obstructive += 25; alerts.push('Histórico Trombose/TEP'); }
-    if (vitals.pvc < 8) { scores.obstructive += 20; alerts.push('PVC Baixa (<8) em Obstrutivo'); } // Conforme solicitado
+    if (vitals.pvc < 8) { scores.obstructive += 20; alerts.push('PVC Baixa (<8) em Obstrutivo'); }
     if (vitals.pvc > 12) { scores.obstructive += 15; }
     if (physicalExam.jugularVeinDistension) { scores.obstructive += 10; }
     
-    // Sinais de Baixo Débito
     if (physicalExam.skinColor === 'palidez' || physicalExam.skinTemperature === 'fria') { scores.obstructive += 8; }
     if (physicalExam.capillaryRefill === 'lento') { scores.obstructive += 7; }
     if (isHypotensive) { scores.obstructive += 5; }
     if (isTachycardic) { scores.obstructive += 3; }
     if (vitals.spo2 < 90) { scores.obstructive += 2; alerts.push('Hipoxemia'); }
     
-    // Penalidade
-    if (physicalExam.heartSounds === 'arritmicas') { 
-        scores.obstructive -= 10; // Penalidade
-    }
+    if (physicalExam.heartSounds === 'arritmicas') { scores.obstructive -= 10; }
 
 
     // =====================================================================
-    // 3. CHOQUE HIPOVOLÊMICO (Mantido conforme anterior)
+    // 3. CHOQUE HIPOVOLÊMICO
     // =====================================================================
     if (urineSevere) { scores.hypovolemic += 25; alerts.push('Débito Urinário Grave'); }
     if (historyHypovolemic) { scores.hypovolemic += 25; alerts.push('Histórico Perda Volêmica'); }
@@ -530,14 +507,14 @@ const Dashboard = () => {
     if (lactateElevated) { scores.hypovolemic += 5; }
 
     // =====================================================================
-    // 4. CHOQUE SÉPTICO (Mantido conforme anterior)
+    // 4. CHOQUE SÉPTICO
     // =====================================================================
     const hasFeverOrHypothermia = vitals.temperature > 38 || vitals.temperature < 36;
     if (hasFeverOrHypothermia) { scores.septic += 25; alerts.push('Febre/Hipotermia'); }
     if (lactateHigh) { scores.septic += 25; }
     if (isHypotensive) { scores.septic += 20; }
     if (urineSevere) { scores.septic += 20; }
-    if (physicalExam.skinTemperature === 'quente' && !isTachycardic) { scores.septic += 20; alerts.push('Pele Quente'); }
+    if (physicalExam.skinTemperature === 'quente' && !isTachycardic) { scores.septic += 20; alerts.push('Pele Quente sem Taquicardia'); }
     if (lactateElevated) { scores.septic += 10; }
     if (isTachycardic) { scores.septic += 10; }
     if (isTachypneic) { scores.septic += 10; }
@@ -545,23 +522,32 @@ const Dashboard = () => {
     if (poorPerfusion) { scores.septic += 10; }
 
     // =====================================================================
-    // 5. CHOQUE NEUROGÊNICO (Mantido conforme anterior)
+    // 5. CHOQUE NEUROGÊNICO - ATUALIZADO (Tríade de Cushing)
     // =====================================================================
+    
+   
+    if (physicalExam.cushingTriad) {
+        scores.neurogenic += 20;
+        alerts.push('Tríade de Cushing Presente (PIC Elevada)');
+    }
+
+    // Critério 2: Hipotensão + Bradicardia (Clássico)
     if (isHypotensive && isBradycardic) {
       scores.neurogenic += 50;
-      alerts.push('Hipotensão + Bradicardia');
+      alerts.push('Hipotensão com Bradicardia');
       if (historyNeuro || physicalExam.spinalInjury) {
         scores.neurogenic += 30;
       }
     }
+    
+    // Outros critérios
     if (isHypotensive) { scores.neurogenic += 20; }
     if (physicalExam.skinTemperature === 'quente' && isBradycardic) { scores.neurogenic += 20; }
 
     // =====================================================================
-    // 6. CHOQUE ANAFILÁTICO (Mantido com adaptação para sibilos)
+    // 6. CHOQUE ANAFILÁTICO
     // =====================================================================
     if (physicalExam.urticaria) { scores.anaphylactic += 50; alerts.push('Urticária'); }
-    // Adaptação: Se houver sibilos no novo campo
     if (physicalExam.lungAdventitious === 'roncos_sibilos') { scores.anaphylactic += 40; alerts.push('Sibilância'); }
     if (isHypotensive) { scores.anaphylactic += 20; }
     if (isTachycardic) { scores.anaphylactic += 10; }
@@ -702,7 +688,7 @@ const Dashboard = () => {
         ['Peso:', `${patientData.weight} kg`],
         ['Sexo:', patientData.gender],
         ['Hipótese Diagnóstica:', patientData.pathology || 'Não informada'],
-        ['Alergia Medicamentosa:', patientData.drugAllergy || 'Nenhuma informada'], // MOVIDO PARA CÁ
+        ['Alergia Medicamentosa:', patientData.drugAllergy || 'Nenhuma informada'],
       ],
       theme: 'plain',
       styles: { fontSize: 11 },
@@ -726,7 +712,7 @@ const Dashboard = () => {
       "Débito Urinário": `${urinaryDebit.value.toFixed(2)} mL/kg/h (${urinaryDebit.status})`,
     }).map(([key, value]) => [key, value]);
     
-    // ATUALIZADO PARA OS NOVOS CAMPOS NO PDF
+    // ATUALIZADO PARA O PDF
     const examData = Object.entries({
       "Nível de Consciência": physicalExam.consciousness, "Enchimento Capilar": physicalExam.capillaryRefill,
       "Coloração da Pele": physicalExam.skinColor, "Temperatura da Pele": physicalExam.skinTemperature,
@@ -736,6 +722,7 @@ const Dashboard = () => {
       "Expansão Torácica": physicalExam.chestExpansion, "Turgência Jugular": physicalExam.jugularVeinDistension ? 'Sim' : 'Não',
       "Urticária/Angioedema": physicalExam.urticaria ? 'Sim' : 'Não', "Trauma Raquimedular": physicalExam.spinalInjury ? 'Sim' : 'Não',
       "Tríade de Beck": physicalExam.beckTriad ? 'Sim' : 'Não',
+      "Tríade de Cushing": physicalExam.cushingTriad ? 'Sim' : 'Não', // Novo campo no PDF
     }).map(([key, value]) => [key, value]);
 
     const combinedData = [];
@@ -1033,7 +1020,10 @@ const Dashboard = () => {
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Turgência Jugular" icon={<PersonSearchIcon />} options={yesNoOptions} value={physicalExam.jugularVeinDistension} onChange={(v) => setPhysicalExam({ ...physicalExam, jugularVeinDistension: v })} /></Grid>
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Urticária / Angioedema" icon={<AllergenIcon />} options={yesNoOptions} value={physicalExam.urticaria} onChange={(v) => setPhysicalExam({ ...physicalExam, urticaria: v })} /></Grid>
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Suspeita de Trauma Raquimedular" icon={<SpinalInjuryIcon />} options={yesNoOptions} value={physicalExam.spinalInjury} onChange={(v) => setPhysicalExam({ ...physicalExam, spinalInjury: v })} /></Grid>
-                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Beck: (Hipotensão, bulhas abafadas e turgência jugular)" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.beckTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, beckTriad: v })} /></Grid>
+                  
+                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Beck (Tamponamento)" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.beckTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, beckTriad: v })} /></Grid>
+                  {/* NOVO CAMPO TRÍADE DE CUSHING */}
+                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Cushing (PIC Elevada)" icon={<NeuroIcon />} options={yesNoOptions} value={physicalExam.cushingTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, cushingTriad: v })} /></Grid>
                 </Grid>
               </Card>
             </Stack>
