@@ -2,7 +2,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   Container, Grid, Card, Typography, Button, Box, Slider, TextField, Chip, Stack,
-  Paper, Avatar, CircularProgress, useTheme, alpha, styled, LinearProgress
+  Paper, Avatar, CircularProgress, useTheme, alpha, styled, LinearProgress,
+  FormControlLabel, Checkbox, Switch, Collapse
 } from '@mui/material';
 import {
   Favorite as HeartIcon, Thermostat as TempIcon, Air as RespiratoryIcon, Speed as SpeedIcon,
@@ -16,7 +17,7 @@ import {
   Grain as AllergenIcon, Cake as BirthdayIcon, Download as DownloadIcon, ArrowUpward as ArrowUpwardIcon,
   CheckCircle as CheckCircleIcon, Error as ErrorIcon, ReportProblem as ReportProblemIcon, Functions as FunctionsIcon,
   SurroundSound as SoundIcon,
-  PsychologyAlt as NeuroIcon // Novo ícone para Cushing
+  PsychologyAlt as NeuroIcon
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -43,6 +44,88 @@ const IconSlider = styled(Box)(({ theme }) => ({
     },
   },
 }));
+
+// --- NOVO COMPONENTE: SELETOR DA TRÍADE DE CUSHING (ATUALIZADO) ---
+const CushingSelector = ({ value, onChange }) => {
+  const theme = useTheme();
+  
+  const handleMainToggle = (e) => {
+    const isActive = e.target.checked;
+    onChange({
+      active: isActive,
+      has: isActive,
+      brady: isActive,
+      resp: isActive
+    });
+  };
+
+  const handleSubChange = (field) => (e) => {
+    const newState = { ...value, [field]: e.target.checked };
+    
+    // Se o usuário desmarcar todas as opções, desativa o switch principal automaticamente
+    if (!newState.has && !newState.brady && !newState.resp) {
+      newState.active = false;
+    }
+    onChange(newState);
+  };
+
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        p: 3,
+        borderRadius: 3,
+        background: alpha(theme.palette.background.paper, 0.8),
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+        height: '100%'
+      }}
+    >
+      <Stack spacing={2}>
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Avatar sx={{ backgroundColor: theme.palette.primary.light, color: theme.palette.primary.dark, width: 40, height: 40 }}>
+            <NeuroIcon />
+          </Avatar>
+          <Typography variant="subtitle1" fontWeight={600}>
+            Tríade de Cushing
+          </Typography>
+        </Stack>
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={value.active}
+              onChange={handleMainToggle}
+              color="primary"
+            />
+          }
+          // REMOVIDO "(Expandido)"
+          label={value.active ? "Presente" : "Ausente"}
+          sx={{ ml: 1 }}
+        />
+
+        <Collapse in={value.active}>
+          <Stack spacing={1} sx={{ pl: 2, mt: 1, borderLeft: `2px solid ${theme.palette.divider}` }}>
+            <FormControlLabel
+              control={<Checkbox checked={value.has} onChange={handleSubChange('has')} size="small" />}
+              // REMOVIDO CHIP DE PONTOS
+              label={<Typography variant="body2">Hipertensão (HAS)</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox checked={value.brady} onChange={handleSubChange('brady')} size="small" />}
+              // REMOVIDO CHIP DE PONTOS
+              label={<Typography variant="body2">Bradicardia</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox checked={value.resp} onChange={handleSubChange('resp')} size="small" />}
+              // REMOVIDO CHIP DE PONTOS
+              label={<Typography variant="body2">Respiração Irregular</Typography>}
+            />
+          </Stack>
+        </Collapse>
+      </Stack>
+    </Card>
+  );
+};
 
 const VitalCard = ({ icon, title, value, unit, slider, onChange, min, max, step = 1, marks, type = 'slider' }) => {
   const theme = useTheme();
@@ -317,6 +400,7 @@ const Dashboard = () => {
     pvc: 8, urineVolume: 210, collectionHours: 6,
   });
 
+  // cushingTriad agora é um objeto
   const [physicalExam, setPhysicalExam] = useState({
     capillaryRefill: 'normal', 
     skinColor: 'normal', 
@@ -330,7 +414,7 @@ const Dashboard = () => {
     urticaria: false, 
     spinalInjury: false,
     beckTriad: false,
-    cushingTriad: false, // NOVO ESTADO: Tríade de Cushing
+    cushingTriad: { active: false, has: false, brady: false, resp: false },
   });
 
   const [result, setResult] = useState(null);
@@ -522,16 +606,22 @@ const Dashboard = () => {
     if (poorPerfusion) { scores.septic += 10; }
 
     // =====================================================================
-    // 5. CHOQUE NEUROGÊNICO - ATUALIZADO (Tríade de Cushing)
+    // 5. CHOQUE NEUROGÊNICO
     // =====================================================================
     
-   
-    if (physicalExam.cushingTriad) {
-        scores.neurogenic += 20;
-        alerts.push('Tríade de Cushing Presente (PIC Elevada)');
+    // Critério 1: Tríade de Cushing (Máximo 20 pontos)
+    if (physicalExam.cushingTriad.active) {
+      let cushingScore = 0;
+      if (physicalExam.cushingTriad.has) cushingScore += 7;
+      if (physicalExam.cushingTriad.brady) cushingScore += 7;
+      if (physicalExam.cushingTriad.resp) cushingScore += 6;
+      
+      if (cushingScore > 0) {
+        scores.neurogenic += cushingScore;
+        alerts.push(`Tríade de Cushing (+${cushingScore} pts)`);
+      }
     }
 
-    // Critério 2: Hipotensão + Bradicardia (Clássico)
     if (isHypotensive && isBradycardic) {
       scores.neurogenic += 50;
       alerts.push('Hipotensão com Bradicardia');
@@ -540,7 +630,6 @@ const Dashboard = () => {
       }
     }
     
-    // Outros critérios
     if (isHypotensive) { scores.neurogenic += 20; }
     if (physicalExam.skinTemperature === 'quente' && isBradycardic) { scores.neurogenic += 20; }
 
@@ -712,7 +801,16 @@ const Dashboard = () => {
       "Débito Urinário": `${urinaryDebit.value.toFixed(2)} mL/kg/h (${urinaryDebit.status})`,
     }).map(([key, value]) => [key, value]);
     
-    // ATUALIZADO PARA O PDF
+    // Tratamento para exibição da Tríade de Cushing no PDF
+    let cushingStatus = 'Não';
+    if (physicalExam.cushingTriad.active) {
+      const parts = [];
+      if (physicalExam.cushingTriad.has) parts.push('HAS');
+      if (physicalExam.cushingTriad.brady) parts.push('Bradicardia');
+      if (physicalExam.cushingTriad.resp) parts.push('Resp. Irregular');
+      cushingStatus = parts.length > 0 ? `Sim (${parts.join(', ')})` : 'Sim (Sem itens marcados)';
+    }
+
     const examData = Object.entries({
       "Nível de Consciência": physicalExam.consciousness, "Enchimento Capilar": physicalExam.capillaryRefill,
       "Coloração da Pele": physicalExam.skinColor, "Temperatura da Pele": physicalExam.skinTemperature,
@@ -722,7 +820,7 @@ const Dashboard = () => {
       "Expansão Torácica": physicalExam.chestExpansion, "Turgência Jugular": physicalExam.jugularVeinDistension ? 'Sim' : 'Não',
       "Urticária/Angioedema": physicalExam.urticaria ? 'Sim' : 'Não', "Trauma Raquimedular": physicalExam.spinalInjury ? 'Sim' : 'Não',
       "Tríade de Beck": physicalExam.beckTriad ? 'Sim' : 'Não',
-      "Tríade de Cushing": physicalExam.cushingTriad ? 'Sim' : 'Não', // Novo campo no PDF
+      "Tríade de Cushing": cushingStatus,
     }).map(([key, value]) => [key, value]);
 
     const combinedData = [];
@@ -869,6 +967,9 @@ const Dashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField fullWidth label="Leito nº" value={identification.bed} onChange={e => setIdentification({ ...identification, bed: e.target.value })} variant="outlined" />
+            </Grid>
+            <Grid item xs={12} sm={6} md={6}>
+              <TextField fullWidth label="Alergia Medicamentosa" value={identification.drugAllergy} onChange={e => setIdentification({ ...identification, drugAllergy: e.target.value })} variant="outlined" />
             </Grid>
             <Grid item xs={12} sm={6} md={6}>
               <Stack direction="row" alignItems="center" spacing={2} sx={{ height: '100%' }}>
@@ -1023,7 +1124,7 @@ const Dashboard = () => {
                   
                   <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Beck (Tamponamento)" icon={<WarningIcon />} options={yesNoOptions} value={physicalExam.beckTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, beckTriad: v })} /></Grid>
                   {/* NOVO CAMPO TRÍADE DE CUSHING */}
-                  <Grid item xs={12} sm={6} md={4}><IconSelector title="Tríade de Cushing (PIC Elevada)" icon={<NeuroIcon />} options={yesNoOptions} value={physicalExam.cushingTriad} onChange={(v) => setPhysicalExam({ ...physicalExam, cushingTriad: v })} /></Grid>
+                  <Grid item xs={12} sm={6} md={4}><CushingSelector value={physicalExam.cushingTriad} onChange={(val) => setPhysicalExam({ ...physicalExam, cushingTriad: val })} /></Grid>
                 </Grid>
               </Card>
             </Stack>
